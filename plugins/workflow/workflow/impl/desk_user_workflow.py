@@ -35,7 +35,7 @@ class DeskUserWorkflowServiceAlchemy(EntityServiceAlchemy, IDeskUserWorkflowServ
     def __init__(self):
         EntityServiceAlchemy.__init__(self, DeskMapped)
     
-    def getWorkflows(self, desk, user, **options):
+    def getWorkflows(self, desk, user=None, **options):
         '''
         @see: IDeskUserWorkflowService.getWorkflows
         '''
@@ -48,7 +48,7 @@ class DeskUserWorkflowServiceAlchemy(EntityServiceAlchemy, IDeskUserWorkflowServ
         if user: sql = sql.filter(DeskUserWorkflow.user == user)
         return iterateCollection(sql)
     
-    def getUsers(self, desk, workflow, **options):
+    def getUsers(self, desk, workflow=None, **options):
         ''' 
         @see: IDeskUserWorkflowService.getUsers
         '''

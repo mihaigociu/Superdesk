@@ -12,6 +12,7 @@ Contains the services for workflow.
 from ..plugin.registry import registerService
 from .database import binders
 from ally.container import support, bind, ioc
+from ally.design.processor.assembly import Assembly
 
 # --------------------------------------------------------------------
 
@@ -24,5 +25,29 @@ support.loadAllEntities(SERVICES)
 
 # --------------------------------------------------------------------
 
+deskHandler = copyTasting = support.notCreated
+
+support.createEntitySetup('workflow.core.impl.processor.**.*')
+
+# --------------------------------------------------------------------
+
 @ioc.entity
 def workflows() -> list: return ['Copy Tasting']
+
+@ioc.entity
+def assemblyGraph() -> Assembly:
+    return Assembly('Graph nodes')
+
+@ioc.entity
+def assemblyWorkflow() -> Assembly:
+    return Assembly('Graph workflow nodes')
+
+# --------------------------------------------------------------------
+
+@ioc.before(assemblyGraph)
+def updateAssemblyGraph():
+    assemblyGraph().add(deskHandler())
+    
+@ioc.before(assemblyWorkflow)
+def updateAssemblyWorkflow():
+    assemblyWorkflow().add(copyTasting())

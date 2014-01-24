@@ -22,7 +22,7 @@ from ally.design.processor.assembly import Assembly
 from ally.container.ioc import initialize
 from ally.design.processor.execution import Processing, FILL_ALL
 from ally.support.util_context import listBFS
-from workflow.impl.processor.desk import DeskHandler
+from workflow.core.impl.processor.desk import DeskHandler
 
 #---------------------------------------------------------------
 
