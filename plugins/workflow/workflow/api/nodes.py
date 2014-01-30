@@ -54,6 +54,10 @@ class INodesService:
         ''' '''
         
     @call
+    def getNodes(self, **options:SliceAndTotal) -> Iter(Node):
+        '''Will return all nodes in the Graph'''
+        
+    @call
     def getEdges(self, nodeGUID:Node.GUID, **options:SliceAndTotal) -> Iter(Edge):
         ''' '''
     

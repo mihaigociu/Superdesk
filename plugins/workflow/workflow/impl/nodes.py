@@ -29,7 +29,6 @@ class Graph(Context):
 class Node(Context):
     model = requires(nodes.Node)
     edges = requires(list)
-    workflow = requires(Context)
 
 class Edge(Context):
     model = requires(nodes.Edge)
@@ -54,6 +53,10 @@ class NodesService(INodesService):
         ''' '''
         node = self.graph.nodes.get(nodeGUID, None)
         if node: return node.model
+    
+    def getNodes(self, **options):
+        ''' '''
+        return (node.model for node in self.graph.nodes.values())
     
     def getEdges(self, nodeGUID, **options):
         ''' '''

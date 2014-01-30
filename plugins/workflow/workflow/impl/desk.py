@@ -55,8 +55,8 @@ class DeskServiceAlchemy(EntityServiceAlchemy, IDeskService):
         '''
         #first make sure the two nodes exist
         try:
-            source = self.session().query(DeskMapped.id).filter(DeskMapped.Name == fromDesk).one()
-            destination = self.session().query(DeskMapped.id).filter(DeskMapped.Name == toDesk).one()
+            source, = self.session().query(DeskMapped.id).filter(DeskMapped.Name == fromDesk).one()
+            destination, = self.session().query(DeskMapped.id).filter(DeskMapped.Name == toDesk).one()
         except NoResultFound: return False
         
         #look for existing connection between the two
@@ -67,8 +67,8 @@ class DeskServiceAlchemy(EntityServiceAlchemy, IDeskService):
         #if no connection, create one
         if sql.count() == 0:
             connection = DeskDesk()
-            connection.source = source[0]
-            connection.destination = destination[0]
+            connection.source = source
+            connection.destination = destination
             self.session().add(connection)
             return True
         return False

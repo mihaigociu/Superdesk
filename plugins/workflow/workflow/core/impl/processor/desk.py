@@ -46,11 +46,7 @@ class NodeDesk(Context):
     @rtype: list
     List of edges.
     ''')
-    workflow = defines(Context, doc='''
-    @rtype: NodeDesk
-    The workflow for this desk.
-    ''')
-
+    
 class EdgeDesk(Context):
     model = defines(nodes.Edge, doc='''
     @rtype: Edge
@@ -96,29 +92,34 @@ class DeskHandler(HandlerBranching):
         #build nodes repository
         desksDb = self.deskService.getAll()
         if not graph.nodes: graph.nodes = {}
-
+        
+        #the GUID of the node will be a hash of its name
         for name in desksDb:
-            graph.nodes[name] = Node(model=nodes.Node(name, name))
-            
+            graph.nodes[hashNode(name)] = Node(model=nodes.Node(hashNode(name), name))
+        
         #for each desk node create the connections with other desk nodes
         nodeIds = [nodeId for nodeId in graph.nodes.keys()]
         for nodeId in nodeIds:
             node = graph.nodes.get(nodeId)
             assert isinstance(node, NodeDesk), 'Invalid node %s' % node
             
-            connections = self.deskService.getDestinations(node.model.Name)
-            if not node.edges: node.edges = []
-            for deskName in connections:
-                destination = graph.nodes.get(deskName, None)
-                if destination: node.edges.append(Edge(model=nodes.Edge(destination.model.GUID, 'move')))
-
             workflows = set(self.deskUserWorkflowService.getWorkflows(node.model.Name))            
             assert isinstance(processing, Processing), 'Invalid processing %s' % processing
-            node.workflow = Node(model=nodes.Node(node.model.GUID, node.model.Name))
-            graphWorkflow = processing.ctx.graphWorkflow(input=node.workflow, output=node.workflow, workflows=workflows)
-            arg = processing.execute(FILL_ALL, graphWorkflow=graphWorkflow, graph=graph, Node=Node, Edge=Edge, **keyargs)
-            arg
+            graphWorkflow = processing.ctx.graphWorkflow(input=node, output=node, workflows=workflows)
+            processing.execute(FILL_ALL, graphWorkflow=graphWorkflow, graph=graph, Node=Node, Edge=Edge, **keyargs)
             
-            
-            
+            connections = [hashNode(destionationName) for destionationName in self.deskService.getDestinations(node.model.Name)]
+            output = graphWorkflow.output
+            if not output.edges: output.edges = []
+            for deskGUID in connections:
+                destination = graph.nodes.get(deskGUID, None)
+                if destination: output.edges.append(Edge(model=nodes.Edge(destination.model.GUID, 'move')))
+
+#TODO: make proper hash function
+#TODO: build Assignment Service: NodesTable(id, GUID) - sync nodes graph with db
+#                                 AssignmentTable(id, node_id, name, description, ...)
+def hashNode(nodeName):
+    ''' '''
+    return '_'+nodeName+'_'
+        
             

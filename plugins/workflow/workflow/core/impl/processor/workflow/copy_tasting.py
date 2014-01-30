@@ -19,6 +19,7 @@ from ally.design.processor.context import Context
 from ally.design.processor.handler import Handler, HandlerProcessor
 from workflow.api import nodes
 from functools import partial
+from workflow.core.impl.processor.desk import hashNode
 
 # --------------------------------------------------------------------
 log = logging.getLogger(__name__)
@@ -52,10 +53,10 @@ class CopyTastingHandler(HandlerProcessor):
     Implementation for the processor that creates the Copy Tasting Workflow.
     '''
     #schema to create the workflow
-    schema = {'$Input': ['Copy Tasting'],
-                'Copy Tasting': ['Spike', 'Interesting', '$Output'],
-                'Spike': ['Copy Tasting', 'Interesting', '$Output'],
-                'Interesting': ['Copy Tasting', '$Output']}
+    schema = {'$Input': ['CopyTasting'],
+                'CopyTasting': ['Spike', 'Interesting', '$Output'],
+                'Spike': ['Interesting', '$Output'],
+                'Interesting': ['Spike', '$Output']}
     
     def __init__(self):
         super().__init__()
@@ -66,7 +67,7 @@ class CopyTastingHandler(HandlerProcessor):
         '''
         assert isinstance(graph, Graph), 'Invalid graph %s' % graph
         assert isinstance(graphWorkflow, GraphWorkflow), 'Invalid workflow graph %s' % graphWorkflow
-        
+
         if 'Copy Tasting' not in graphWorkflow.workflows: return
         graphWorkflow.workflows.discard('Copy Tasting')
         
@@ -78,6 +79,8 @@ class CopyTastingHandler(HandlerProcessor):
         # create the output node and the workflow
         graphWorkflow.output = createNode('Output')
         self.createWorkflow(self.schema, graphWorkflow.input, graphWorkflow.output, graph, createNode, createEdge)
+        
+        graphWorkflow.input = graphWorkflow.output
     
     def createWorkflow(self, schema, input, output, graph, createNode, createEdge):
         # create the nodes for the schema
@@ -85,7 +88,7 @@ class CopyTastingHandler(HandlerProcessor):
             if nodeName not in ('$Input', '$Output'): createNode(nodeName)
 
         # auxiliary functions
-        nodeId = lambda name: '%s.%s' % (input.model.GUID, name)
+        nodeId = lambda name: hashNode('%s.%s' % (input.model.Name, name))
         getNode = lambda name: graph.nodes.get(nodeId(name))
         
         #create the workflow based on the schema
@@ -103,9 +106,10 @@ class CopyTastingHandler(HandlerProcessor):
         assert isinstance(graph, Graph)
         assert isinstance(base, NodeDesk)
         
-        nodeId = '%s.%s' % (base.model.GUID, name)
+        nodeName = '%s.%s' % (base.model.Name, name)
+        nodeId =  hashNode(nodeName)
         gnode = graph.nodes.get(nodeId)
         if gnode is None:
-            gnode = NodeCtx(model=NodeModel(nodeId, '%s %s' % (base.model.Name, name)), edges=[])
+            gnode = NodeCtx(model=NodeModel(nodeId, nodeName), edges=[])
             graph.nodes[nodeId] = gnode
         return gnode
