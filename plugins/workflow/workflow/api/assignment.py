@@ -10,50 +10,46 @@ API specifications for Assignment service.
 
 '''
 
-from ally.api.config import service, query, call, UPDATE
-from ally.api.criteria import AsLike
-from ally.support.api.entity_named import IEntityService, Entity, QEntity
-from workflow.api.domain_workflow import modelWorkFlow
-from ally.api.option import SliceAndTotal  # @UnusedImport
+from ally.api.config import service, query, call
+from ally.api.criteria import AsLike, AsLikeOrdered
+from ally.api.option import SliceAndTotal # @UnusedImport
 from ally.api.type import Iter
+from ally.support.api.entity import IEntityCRUDPrototype, IEntityGetPrototype
+from workflow.api.domain_workflow import modelWorkFlow
 from workflow.api.nodes import Node
 
+
 # --------------------------------------------------------------------
-@modelWorkFlow
-class Assignment(Entity):
+@modelWorkFlow(id='GUID')
+class Assignment:
     '''
     Provides the assignment model.
     '''
+    GUID = str
     Name = str
+    Node = Node
     Description = str
     
 # --------------------------------------------------------------------
 
 @query(Assignment)
-class QAssignment(QEntity):
+class QAssignment:
     '''
     Provides the query for assignment model.
     '''
-    name = AsLike
+    name = AsLikeOrdered
     description = AsLike
     
 # --------------------------------------------------------------------
 
-@service((Entity, Assignment), (QEntity, QAssignment))
-class IAssignmentService(IEntityService):
+@service(('Entity', Assignment), ('QEntity', QAssignment))
+class IAssignmentService(IEntityGetPrototype, IEntityCRUDPrototype):
     '''
     Provides the service methods for assignments.
     '''
     
-    @call(method=UPDATE)
-    def moveAssignmentToNode(self, assignment:Assignment.Name, node:Node.GUID) -> bool:
-        ''' '''
-    
     @call
-    def getNodeForAssignment(self, assignment:Assignment.Name) -> Node:
+    def getAssignments(self, node:Node.GUID=None, q:QAssignment=None, **options:SliceAndTotal) -> Iter(Assignment.GUID):
         ''' '''
-    
-    @call
-    def getAssignmentsForNode(self, node:Node.GUID) -> Iter(Assignment):
-        ''' '''
-    
+        
+ 

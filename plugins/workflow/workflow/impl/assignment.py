@@ -18,7 +18,7 @@ from workflow.api.assignment import IAssignmentService, QAssignment, Assignment
 from workflow.meta.assignment import AssignmentMapped, NodeDB
 from ally.container import wire
 from workflow.api.nodes import INodesService
-from workflow.api.nodes import Node
+from uuid import uuid4
 
 # --------------------------------------------------------------------
 
@@ -34,70 +34,36 @@ class AssignmentServiceAlchemy(EntityServiceAlchemy, IAssignmentService):
     def __init__(self):
         EntityServiceAlchemy.__init__(self, AssignmentMapped, QAssignment)
     
-    def moveAssignmentToNode(self, assignment, node):
+    def insert(self, entity):
         '''
-        @see: IAssignmentService.moveAssignmentToNode 
+        @see: IAssignmentService.insert 
         '''
-        #check if the node is in the Graph
-        if not self.nodesService.getNode(node):
-            self.removeNodeFromDB(node)
-            return False
-        
-        #check if the assignment exists
-        try:
-            assignmentMapped = self.session().query(AssignmentMapped).filter(AssignmentMapped.Name == assignment).one()
-        except NoResultFound: return False
-        
-        #add the node to database, if it is not already there
-        try:
-            self.session().query(NodeDB.id).filter(NodeDB.GUID == node).one()
-        except NoResultFound:
-            nodeDB = NodeDB()
-            nodeDB.GUID = node
-            self.session().add(nodeDB)
-        
-        #make sure the assignment is not already on the node
-        sql = self.session().query(AssignmentMapped.Node).join(NodeDB, NodeDB.id == AssignmentMapped.Node)
-        sql = sql.filter((AssignmentMapped.Name == assignment) & (NodeDB.GUID == node))
-        if sql.count() > 0: return True
-        
-        #change the current location of the assignment
-        nodeId, = self.session().query(NodeDB.id).filter(NodeDB.GUID == node).one()
-        assert isinstance(assignmentMapped, AssignmentMapped), 'Invalid assignment %s' % assignmentMapped
-        assignmentMapped.Node = nodeId
-        self.session().add(assignmentMapped)
-        return True
+        assert isinstance(entity, Assignment), 'Invalid assignement %s' % entity
+        entity.GUID = uuid4().hex
+        super().insert(entity)
+        self.updateAssignmentNode(entity)
+        return entity.GUID
     
-    def getUnassignedAssignments(self):
-        #get the assignments with invalid node or with no node
-        sql = self.session().query(AssignmentMapped, NodeDB.GUID).outerjoin(NodeDB, NodeDB.id == AssignmentMapped.Node)
-        return [assignment for assignment, node in sql.all() if not self.nodesService.getNode(node)]
+    def update(self, entity):
+        '''
+        @see: IAssignmentService.update 
+        '''
+        assert isinstance(entity, Assignment), 'Invalid assignement %s' % entity
+        super().update(entity)
+        self.updateAssignmentNode(entity)
     
-    def getNodeForAssignment(self, assignment):
+    def getAssignments(self, node, q, **options):
         '''
-        @see: IAssignmentService.getNodeForAssignment
+        @see: IAssignmentService.getAssignments
         '''
-        sql = self.session().query(NodeDB.GUID).join(NodeDB, NodeDB.id == AssignmentMapped.Node)
-        sql = sql.filter((AssignmentMapped.Name == assignment))
-        try:
-            node, = sql.one()
-            if not self.nodesService.getNode(node):
-                self.removeNodeFromDB(node)
-                return None
-            return node
-        except NoResultFound:
-            return None
+        sql = self.session().query(AssignmentMapped)
+        if node: 
+            sql.filter(AssignmentMapped.nodeId == self.nodeId(node))
         
-    def getAssignmentsForNode(self, node):
-        '''
-        @see: IAssignmentService.getAssignmentsForNode
-        '''
-        if not self.nodesService.getNode(node):
-            self.removeNodeFromDB(node)
-            return []
-        
-        sql = self.session().query(AssignmentMapped).join(NodeDB, NodeDB.id == AssignmentMapped.Node)
-        sql = sql.filter(NodeDB.GUID == node)
+        if q:
+            assert isinstance(q, QAssignment), 'Invalid query %s' % q
+            if q.name:
+                sql = sql.filter(AssignmentMapped.Name == q.name)
         
         assignments = []
         for mapped in sql.all():
@@ -108,6 +74,39 @@ class AssignmentServiceAlchemy(EntityServiceAlchemy, IAssignmentService):
             assignments.append(mapped)
         
         return assignments
+
+    # ----------------------------------------------------------------
+    #TODO: integrate this method into getAssignments
+    def getUnassignedAssignments(self):
+        '''
+        @see: IAssignmentService.getUnassignedAssignments
+        '''
+        #get the assignments with invalid node or with no node
+        sql = self.session().query(AssignmentMapped, NodeDB.GUID).outerjoin(NodeDB, NodeDB.id == AssignmentMapped.Node)
+        return [assignment for assignment, node in sql.all() if not self.nodesService.getNode(node)]
+    
+    def updateAssignmentNode(self, entity):
+        if Assignment.Node in entity:
+            if not self.nodesService.getNode(entity.Node): return #inexistent node
+            if entity.Node is None: nodeId = None
+            else:
+                self.addNodeToDB(entity.Node)
+                nodeId = self.nodeId(entity.Node)
+            self.session().query(AssignmentMapped).filter(AssignmentMapped.GUID == entity.GUID).update({AssignmentMapped.nodeId: nodeId})
+    
+    def addNodeToDB(self, guid):
+        #add the node to database, if it is not already there
+        try:
+            self.session().query(NodeDB.id).filter(NodeDB.GUID == guid).one()
+        except NoResultFound:
+            nodeDB = NodeDB()
+            nodeDB.GUID = guid
+            self.session().add(nodeDB)
+    
+    def nodeId(self, guid):
+        ''' Provides the database node id for the provided GUID.'''
+        try: return self.session().query(NodeDB.id).filter(NodeDB.GUID == guid).one()
+        except NoResultFound: return
     
     def removeNodeFromDB(self, node):
         #do some cleanup on the database: delete the node from the database
@@ -116,29 +115,4 @@ class AssignmentServiceAlchemy(EntityServiceAlchemy, IAssignmentService):
         except NoResultFound: return
         self.session().delete(nodeDB)
         
-    #TODO: will not use this for now so DELETE it
-    def syncNodesWithDb(self):
-        ''' '''
-        nodes = self.nodesService.getNodes()
-        nodesFromGraph = {node.GUID for node in nodes}
-        nodesFromDb = {guid for guid in self.session().query(NodeDB.GUID).all()}
-        
-        toAdd = nodesFromGraph.difference(nodesFromDb)
-        toDelete = nodesFromDb.difference(nodesFromGraph)
-        
-        for node in nodes:
-            assert isinstance(node, Node), 'Invalid node %s' % node
-            
-            nodeMapped = NodeDB()
-            nodeMapped.GUID = node.GUID
-            
-            #test to see if this really works
-            if node.GUID in toAdd:
-                self.session().add(nodeMapped)
-            elif node.GUID in toDelete:
-                self.session().delete(node)
-            
     
-        
-    
-        
